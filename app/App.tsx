@@ -1,23 +1,25 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { AuthProvider, AuthContext } from './src/context/AuthContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import LoadingScreen from './src/screens/LoadingScreen';
 
 const Stack = createNativeStackNavigator();
 
-const AppNavigator = () => {
-  const { user, loading } = React.useContext(AuthContext)!;
-
-  if (loading) {
-    return null; // could show a splash screen
-  }
+function AppNavigator() {
+  const { user, loading } = useAuth();
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
+      <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#090A0F' } }}>
+        {loading ? (
+          <Stack.Screen name="Loading" component={LoadingScreen} />
+        ) : user ? (
           <Stack.Screen name="Home" component={HomeScreen} />
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
@@ -25,13 +27,15 @@ const AppNavigator = () => {
       </Stack.Navigator>
     </NavigationContainer>
   );
-};
+}
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
-
