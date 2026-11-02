@@ -4,8 +4,9 @@
     "lint": "eslint --ext .js,.ts .",
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test:rules": "firebase emulators:exec --only firestore \"npx mocha -r ts-node/register src/__tests__/**/*.spec.ts --timeout 30000\"",
-    "emulators": "npm run build && firebase emulators:start",
+    "test": "mocha -r ts-node/register src/__tests__/planner.spec.ts src/__tests__/actions.spec.ts",
+    "test:rules": "firebase emulators:exec --only firestore \"npx mocha -r ts-node/register src/__tests__/rules.spec.ts --timeout 30000\"",
+    "emulators": "npm run build && firebase emulators:start --only functions",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
@@ -13,7 +14,7 @@
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "22"
+    "node": "24"
   },
   "main": "lib/index.js",
   "dependencies": {

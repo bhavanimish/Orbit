@@ -132,20 +132,51 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ---------- Backend-only collections (Admin SDK bypasses rules) ----------
+    // ---------- plans/{planId} ----------
+    // Written by the client (no backend functions on Spark plan).
     match /plans/{planId} {
       allow read: if isDocOwner();
-      allow write: if false;
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasAll(
+            ['ownerUid', 'goalId', 'version', 'status',
+             'summary', 'tasks', 'createdAt', 'updatedAt'])
+        && request.resource.data.status in
+            ['proposed', 'approved', 'rejected', 'superseded']
+        && request.resource.data.summary is string
+        && request.resource.data.summary.size() > 0
+        && request.resource.data.summary.size() <= 2000
+        && request.resource.data.tasks is list;
+
+      allow update: if isDocOwner()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.goalId  == resource.data.goalId
+        && request.resource.data.status in
+            ['proposed', 'approved', 'rejected', 'superseded'];
+
+      allow delete: if false;
     }
 
+    // agentActions not needed without Cloud Functions
     match /agentActions/{actionId} {
       allow read: if isDocOwner();
       allow write: if false;
     }
 
+    // ---------- activityLogs/{logId} ----------
     match /activityLogs/{logId} {
       allow read: if isDocOwner();
-      allow write: if false;
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasAll(
+            ['ownerUid', 'actionType', 'entityType', 'summary', 'createdAt'])
+        && request.resource.data.summary is string
+        && request.resource.data.summary.size() > 0
+        && request.resource.data.summary.size() <= 500;
+
+      allow update, delete: if false;
     }
   }
 }

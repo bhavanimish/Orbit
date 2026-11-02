@@ -11,4 +11,7 @@ node_modules/
 
 .secret.local
 
+serviceAccount*.json
+service-account*.json
+
 lib/

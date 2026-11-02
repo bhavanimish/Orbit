@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../navigation/types";
 import {
   View,
   Text,
@@ -6,57 +9,115 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import { useAuth } from '../context/AuthContext';
+  FlatList,
+} from "react-native";
+import { useAuth } from "../context/AuthContext";
+import { db } from "../firebaseConfig";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  DocumentData,
+} from "firebase/firestore";
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
-  const [signingOut, setSigningOut] = useState(false);
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [goals, setGoals] = useState<DocumentData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, "goals"),
+      where("ownerUid", "==", user.uid),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: DocumentData[] = [];
+        snap.forEach((doc) => {
+          const data = doc.data();
+          if (data.status !== "archived") {
+            list.push({ id: doc.id, ...data });
+          }
+        });
+        // newest first based on createdAt server timestamp
+        list.sort((a, b) => {
+          const aTime = a.createdAt?.seconds ?? 0;
+          const bTime = b.createdAt?.seconds ?? 0;
+          return bTime - aTime;
+        });
+        setGoals(list);
+        setLoading(false);
+      },
+      (e) => {
+        console.error(e);
+        setError("Failed to load goals.");
+        setLoading(false);
+      },
+    );
+    return () => unsub();
+  }, [user]);
 
   const handleSignOut = async () => {
-    setSigningOut(true);
     try {
       await signOut();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to sign out.';
-      Alert.alert('Sign out error', message);
-    } finally {
-      setSigningOut(false);
+    } catch (e) {
+      Alert.alert("Sign out error", "Unable to sign out.");
     }
   };
+
+  const renderItem = ({ item }: { item: DocumentData }) => (
+    <TouchableOpacity
+      style={styles.goalCard}
+      activeOpacity={0.7}
+      onPress={() =>
+        navigation.navigate("GoalDetail", {
+          goalId: item.id,
+          title: item.title,
+        })
+      }
+    >
+      <Text style={styles.goalTitle}>{item.title}</Text>
+      {item.description ? (
+        <Text style={styles.goalDesc}>{item.description}</Text>
+      ) : null}
+      <Text style={styles.openHint}>Tap to open</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.brandTitle}>ORBIT</Text>
-        <Text style={styles.statusBadge}>Online</Text>
+        <TouchableOpacity onPress={handleSignOut}>
+          <Text style={styles.signOut}>Sign out</Text>
+        </TouchableOpacity>
       </View>
-
-      <View style={styles.card}>
-        <Text style={styles.welcomeLabel}>Signed in as</Text>
-        <Text style={styles.userEmail}>{user?.email || 'No email provided'}</Text>
-        {user?.displayName ? (
-          <Text style={styles.displayName}>{user.displayName}</Text>
-        ) : null}
-
-        <View style={styles.divider} />
-
-        <Text style={styles.placeholderNotice}>
-          Dashboard & AI action capabilities will be wired in next phases.
-        </Text>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.signOutButton, signingOut && styles.buttonDisabled]}
-        onPress={handleSignOut}
-        disabled={signingOut}
-        activeOpacity={0.8}
-      >
-        {signingOut ? (
-          <ActivityIndicator color="#EF4444" />
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator size="large" color="#818CF8" />
+        ) : error ? (
+          <Text style={styles.error}>{error}</Text>
+        ) : goals.length === 0 ? (
+          <Text style={styles.empty}>No goals yet</Text>
         ) : (
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <FlatList
+            data={goals}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+          />
         )}
+      </View>
+      <TouchableOpacity
+        style={styles.newBtn}
+        onPress={() => navigation.navigate("CreateGoal")}
+      >
+        <Text style={styles.newBtnText}>New goal</Text>
       </TouchableOpacity>
     </View>
   );
@@ -65,80 +126,64 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090A0F',
+    backgroundColor: "#090A0F",
     padding: 24,
-    justifyContent: 'space-between',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   brandTitle: {
+    color: "#818CF8",
     fontSize: 24,
-    fontWeight: '800',
-    color: '#818CF8',
-    letterSpacing: 2,
+    fontWeight: "800",
   },
-  statusBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#10B981',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  signOut: {
+    color: "#EF4444",
   },
-  card: {
-    backgroundColor: '#12141C',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#1E2230',
+  content: {
+    flex: 1,
+    marginTop: 20,
   },
-  welcomeLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#64748B',
-    marginBottom: 6,
+  empty: {
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 40,
   },
-  userEmail: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
+  error: {
+    color: "#EF4444",
+    textAlign: "center",
+    marginTop: 40,
   },
-  displayName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#94A3B8',
+  goalCard: {
+    backgroundColor: "#12141C",
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 8,
+  },
+  goalTitle: {
+    color: "#F8FAFC",
+    fontWeight: "600",
+  },
+  goalDesc: {
+    color: "#94A3B8",
     marginTop: 4,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#1E2230',
-    marginVertical: 18,
+  openHint: {
+    color: "#818CF8",
+    fontSize: 12,
+    marginTop: 8,
   },
-  placeholderNotice: {
-    fontSize: 13,
-    color: '#64748B',
-    lineHeight: 18,
+  newBtn: {
+    backgroundColor: "#10B981",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 12,
   },
-  signOutButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: '#EF4444',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  signOutText: {
-    color: '#EF4444',
-    fontSize: 15,
-    fontWeight: '700',
+  newBtnText: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });

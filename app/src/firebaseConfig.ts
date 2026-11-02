@@ -1,8 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 // Note: app/tsconfig.json maps '@firebase/auth' to its React Native typings file
 // because firebase/auth types do not expose getReactNativePersistence under the default condition.
-import { initializeAuth, getAuth, getReactNativePersistence, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Each variable is referenced literally so Expo can inline it at build time.
@@ -42,17 +42,6 @@ function createAuth() {
   }
 }
 
+// Auth and Firestore always use real Firebase cloud — no emulators needed.
 export const auth = createAuth();
 export const db = getFirestore(firebaseApp);
-
-// Module-level guard so hot reload does not reconnect
-let emulatorsConnected = false;
-
-const useEmulators = process.env.EXPO_PUBLIC_USE_EMULATORS === 'true';
-const emulatorHost = process.env.EXPO_PUBLIC_EMULATOR_HOST || 'localhost';
-
-if (useEmulators && !emulatorsConnected) {
-  connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
-  connectFirestoreEmulator(db, emulatorHost, 8080);
-  emulatorsConnected = true;
-}
